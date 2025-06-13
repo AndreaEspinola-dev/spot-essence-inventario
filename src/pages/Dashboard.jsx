@@ -503,13 +503,13 @@ const fabricarProducto = async (producto) => {
 
 
                         {/* MODAL RECETA */}
-          {recetaModal.open && (
-            <AsignarRecetaModal
-              producto={recetaModal.producto}
-              onClose={() => setRecetaModal({ open: false, producto: null })}
-              onRecetaGuardada={fetchProducts}
-            />
-          )}
+        {recetaModal.open && (
+          <AsignarRecetaModal
+            open={recetaModal.open}
+            producto={recetaModal.product}
+            onClose={() => setRecetaModal({ open: false, product: null })}
+          />
+        )}
 
       
     </Sidebar>
