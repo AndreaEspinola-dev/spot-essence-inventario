@@ -3,9 +3,15 @@ import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { format } from 'date-fns';
 import Sidebar from '../components/Sidebar';
+import { exportarFabricacionesCSV } from '../utils/exportarFabricacionesCSV';
+import { exportarFabricacionesExcel } from "../utils/exportarFabricacionesExcel";
+
+
 
 export default function Fabricaciones() {
   const [fabricaciones, setFabricaciones] = useState([]);
+
+  
 
   const fetchFabricaciones = async () => {
     const q = query(collection(db, 'fabricaciones'), orderBy('fecha', 'desc'));
@@ -17,6 +23,8 @@ export default function Fabricaciones() {
   useEffect(() => {
     fetchFabricaciones();
   }, []);
+
+  
 
   return (
     <Sidebar>
@@ -61,6 +69,21 @@ export default function Fabricaciones() {
           </tbody>
         </table>
       </div>
+      <button
+  onClick={() => exportarFabricacionesCSV(fabricaciones)}
+  className="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 mt-4"
+>
+  Exportar a CSV
+</button>
+
+<button
+  onClick={() => exportarFabricacionesExcel(fabricaciones)}
+  className="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 mt-4"
+>
+  Exportar a Excel
+</button>
+
+
     </Sidebar>
   );
 }
