@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef  } from 'react';
 import { collection, getDocs, addDoc, deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import Sidebar from '../components/Sidebar';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-toastify';
 import EditarInsumoModal from '../components/EditarInsumoModal';
+
 
 export default function Insumos() {
   const [insumos, setInsumos] = useState([]);
@@ -14,10 +15,16 @@ export default function Insumos() {
     
   });
   const [mostrarCriticos, setMostrarCriticos] = useState(false);
+  // 🔎 búsqueda
+  const [search, setSearch] = useState('');
+
 
   const [showForm, setShowForm] = useState(false);
   const [seleccionados, setSeleccionados] = useState([]);
   const [editInsumo, setEditInsumo] = useState(null);
+  // Input de archivo oculto (importación Excel)
+  const fileInputRef = useRef(null);
+
 
   const fetchInsumos = async () => {
     const snapshot = await getDocs(collection(db, 'insumos'));
@@ -29,25 +36,29 @@ export default function Insumos() {
     fetchInsumos();
   }, []);
 
-  const convertirStock = (stock, unidad, factor, unidadMayor) => {
-    if (!factor || isNaN(factor) || factor <= 1) {
-      return `${stock} ${unidad}`;
-    }
+const convertirStock = (stock, unidad, factor, unidadMayor) => {
+  if (!factor || isNaN(factor) || factor <= 1) {
+    return `${Math.floor(stock)} ${unidad}`;
+  }
 
-
-
-
-    const unidadesMayores = Math.floor(stock / factor);
-    const resto = stock % factor;
-    return `${stock} ${unidad} (${unidadesMayores} ${unidadMayor} y ${resto} ${unidad})`;
-  };
+  const unidadesMayores = Math.floor(stock / factor);
+  const resto = stock % factor;
+  return `${Math.floor(stock)} ${unidad} (${unidadesMayores} ${unidadMayor} y ${Math.floor(resto)} ${unidad})`;
+}; // ← importante
+function norm(str) {
+  return String(str ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // quita acentos
+    .trim();
+}
 
   const agregarInsumo = async (e) => {
     e.preventDefault();
     try {
       const nuevo = {
         ...formData,
-        stock: parseFloat(formData.stock),
+        stock: Math.floor(parseFloat(formData.stock)),
         factorConversion: parseFloat(formData.factorConversion),
         createdAt: Timestamp.now(),
       };
@@ -66,6 +77,7 @@ export default function Insumos() {
   };
 
   const handleExcelUpload = async (e) => {
+    
     const file = e.target.files[0];
     const reader = new FileReader();
 
@@ -93,7 +105,7 @@ export default function Insumos() {
         const insumo = docSnap.data();
         insumosActuales.set(insumo.codigo, { id: docSnap.id, ...insumo });
       });
-
+      
       const operaciones = rows.map(async row => {
         const codigo = row.codigo.toString().trim();
         const stockNuevo = parseFloat(row.stock || 0);
@@ -102,7 +114,7 @@ export default function Insumos() {
         if (existente) {
           const ref = doc(db, 'insumos', existente.id);
           await updateDoc(ref, {
-            stock: existente.stock + stockNuevo,
+            stock: Math.floor(existente.stock + stockNuevo),
             updatedAt: Timestamp.now()
           });
         } else {
@@ -114,19 +126,50 @@ export default function Insumos() {
             unidadMayor: row.unidadMayor || '',
             factorConversion: parseFloat(row.factorConversion || 1),
             ubicacion: row.ubicacion || '',
-            stock: stockNuevo,
+            stock: Math.floor(stockNuevo),
+
             createdAt: Timestamp.now()
           });
+          
         }
       });
+
+      
 
       await Promise.all(operaciones);
       toast.success("✅ Excel cargado correctamente.");
       fetchInsumos();
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
     };
 
     reader.readAsArrayBuffer(file);
   };
+
+  // Abre el selector de archivos
+const handleImportClick = () => {
+  fileInputRef.current?.click();
+};
+  // Descarga plantilla con los encabezados correctos
+  const handleDownloadTemplate = () => {
+    const HEADERS = ["codigo","nombre","categoria","unidad","unidadMayor","factorConversion","ubicacion","stock"];
+
+    const ws = XLSX.utils.json_to_sheet(
+      [
+        { codigo: "INTV150", nombre: "INT. DIFUSOR DE VARILLAS 150ml", categoria: "Fragancias", unidad: "un", unidadMayor: "caja", factorConversion: 12, ubicacion: "Colina", stock: 0 },
+        { codigo: "CC18218", nombre: "Esencia Vainilla Lace 250ml", categoria: "Esencias", unidad: "un", unidadMayor: "caja", factorConversion: 12, ubicacion: "Santa Adela", stock: 0 },
+      ],
+      { header: HEADERS }
+    );
+    // Fuerza los encabezados exactos en A1
+  XLSX.utils.sheet_add_aoa(ws, [HEADERS], { origin: "A1" });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Insumos");
+  XLSX.writeFile(wb, "Plantilla_Insumos.xlsx");
+};
+
+  
 
   const toggleSeleccion = (id) => {
     setSeleccionados(prev =>
@@ -178,10 +221,25 @@ export default function Insumos() {
       toast.error('❌ Error al eliminar');
     }
   };
-
-    const insumosFiltrados = mostrarCriticos
-      ? insumos.filter(insumo => esStockBajo(insumo.stock, insumo.factorConversion))
-      : insumos;
+  
+  
+  const insumosFiltrados = useMemo(() => {
+    const q = norm(search);
+    return insumos.filter((i) => {
+      // 1) filtro de críticos
+      if (mostrarCriticos && !esStockBajo(i.stock, i.factorConversion)) return false;
+      // 2) si no hay búsqueda, pasa
+      if (!q) return true;
+      // 3) campos a buscar
+      return (
+        norm(i.codigo).includes(q) ||
+        norm(i.nombre).includes(q) ||
+        norm(i.categoria).includes(q) ||
+        norm(i.ubicacion).includes(q) ||
+        norm(i.unidad).includes(q)
+      );
+    });
+  }, [insumos, mostrarCriticos, search]);
 
 
   return (
@@ -201,6 +259,24 @@ export default function Insumos() {
             onChange={(e) => setMostrarCriticos(e.target.checked)}
             className="w-4 h-4"
           />
+          </div>
+                <div className="mb-4 flex gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Buscar por código, nombre, categoría, ubicación o unidad…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full md:w-1/2 border p-2 rounded"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300"
+            >
+              Limpiar
+            </button>
+          )}
         </div>
 
 
@@ -227,10 +303,31 @@ export default function Insumos() {
           </form>
         )}
 
-        <div className="mb-4">
-          <label className="block font-semibold text-[#8D8376] mb-2">Cargar Insumos desde Excel</label>
-          <input type="file" accept=".xlsx, .xls" onChange={handleExcelUpload} className="border p-2 rounded w-full" />
+        <div className="mb-4 flex gap-3 items-center">
+          <button
+            onClick={handleImportClick}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Importar Excel
+          </button>
+
+          <button
+            onClick={handleDownloadTemplate}
+            className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
+          >
+            Descargar plantilla
+          </button>
+
+          {/* Input oculto */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleExcelUpload}
+          />
         </div>
+
 
         {seleccionados.length > 0 && (
           <button onClick={eliminarSeleccionados} className="bg-red-600 text-white px-4 py-2 rounded mb-4 hover:bg-red-700">
@@ -242,7 +339,7 @@ export default function Insumos() {
           <table className="w-full text-sm text-left">
             <thead className="bg-[#EDEBE8] text-[#8D8376]">
               <tr>
-                <th className="px-4 py-2"><input type="checkbox" onChange={toggleSeleccionarTodos} checked={seleccionados.length === insumos.length} /></th>
+                <th className="px-4 py-2"><input type="checkbox" onChange={toggleSeleccionarTodos} checked={seleccionados.length > 0 && seleccionados.length === insumosFiltrados.length} /></th>
                 <th className="px-4 py-2">Código</th>
                 <th className="px-4 py-2">Nombre</th>
                 <th className="px-4 py-2">Categoría</th>
