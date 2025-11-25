@@ -112,12 +112,12 @@ Documentación
 
 Puedes ver la documentación completa aquí:
 
-<embed 
-  src="App%20Spot/App%20Spot%20(1)%20(1).pdf" 
-  type="application/pdf" 
-  width="100%" 
-  height="600px" 
-/>
+<iframe 
+    src="https://docs.google.com/gview?url=https://raw.githubusercontent.com/AndreaEspinola-dev/spot-essence-inventario/main/App%20Spot/App%20Spot%20(1)%20(1).pdf&embedded=true"
+    style="width:100%; height:700px;" 
+    frameborder="0">
+</iframe>
+
 
 
 📬 Contacto
