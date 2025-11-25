@@ -3,6 +3,11 @@
 
 Aplicación web desarrollada para la empresa Spot Essence, encargada de gestionar el stock de materias primas y productos terminados. Incluye fabricación, movimientos, alertas visuales, autenticación con roles y una interfaz moderna construida con React + TailwindCSS + Firebase.
 
+## 📄 Documentación del Proyecto (PDF)
+
+
+
+
 🚀 Tecnologías utilizadas
 Frontend
 
@@ -103,6 +108,16 @@ Autenticación
 Optimización de componentes
 Alertas y validaciones
 Documentación
+
+
+Puedes ver la documentación completa aquí:
+
+<embed 
+  src="App%20Spot/App%20Spot%20(1)%20(1).pdf" 
+  type="application/pdf" 
+  width="100%" 
+  height="600px" 
+/>
 
 
 📬 Contacto
